@@ -1,0 +1,36 @@
+[project]
+name = "repdist"
+version = "0.1.0"
+description = "DDPM modeling of Olmo-3 hidden-state representations"
+readme = "README.md"
+authors = [
+    { name = "xzascc", email = "xzascc3944@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "torch>=2.6",
+    "transformers>=4.57",
+    "datasets>=3.0",
+    "accelerate>=1.0",
+    "numpy>=2.0",
+    "matplotlib>=3.9",
+    "pyyaml>=6.0",
+    "tqdm>=4.66",
+    "safetensors>=0.4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+
+[project.scripts]
+repdist = "repdist.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.12.5,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

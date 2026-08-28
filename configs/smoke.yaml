@@ -1,0 +1,49 @@
+seed: 0
+device: cpu
+
+paths:
+  data: runs/smoke/hidden_states
+  checkpoints: runs/smoke/checkpoints
+  logs: runs/smoke/logs
+  outputs: runs/smoke/outputs
+
+extract:
+  model_name: synthetic
+  dataset_name: synthetic
+  dataset_split: train
+  layer: 16
+  max_prompt_tokens: 64
+  batch_size: 32
+  shard_size: 64
+  n_train_initial: 256
+  n_val: 64
+  n_test: 64
+  n_train_stream_chunk: 64
+  max_train_samples: 512
+  dtype: float32
+  attn_implementation: sdpa
+  synthetic_dim: 32
+  synthetic_rank: 8
+
+diffusion:
+  timesteps: 50
+  cosine_s: 0.008
+  beta_max: 0.999
+  hidden_dim: 64
+  time_embed_dim: 32
+  lr: 1.0e-3
+  weight_decay: 0.0
+  batch_size: 64
+  max_steps: 40
+  warmup_steps: 2
+  grad_clip: 1.0
+  eval_every: 20
+  ckpt_every: 20
+  log_every: 5
+  patience: 4
+  min_delta: 1.0e-6
+  stream_on_plateau: false
+
+eval:
+  n_projections: 16
+  sample_batch_size: 64

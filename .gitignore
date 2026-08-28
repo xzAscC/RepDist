@@ -1,0 +1,28 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+
+# Nested slides workspace, not part of the experiment repo
+69e5bc6d27002aeac07372b4/
+
+# Runtime artifacts
+data/**/*.pt
+data/**/*.json
+checkpoints/**/*.pt
+logs/**
+outputs/figures/**
+outputs/metrics/**
+runs/
+!data/hidden_states/.gitkeep
+!checkpoints/.gitkeep
+!logs/.gitkeep
+!outputs/figures/.gitkeep
+!outputs/metrics/.gitkeep
+!logs/.gitkeep
