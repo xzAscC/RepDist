@@ -13,6 +13,7 @@ class PathsConfig:
     checkpoints: str = "checkpoints"
     logs: str = "logs"
     outputs: str = "outputs"
+    normalizer: str = "data/hidden_states/normalizer.pt"
 
 
 @dataclass
@@ -54,12 +55,30 @@ class DiffusionConfig:
     patience: int = 8
     min_delta: float = 1e-4
     stream_on_plateau: bool = True
+    diagnostic_sample_count: int = 16
+    diagnostic_every: int = 500
+    max_healthy_final_rms: float = 3.0
+    hard_abort_rms: float = 25.0
+    diagnostic_timesteps: list[int] = field(default_factory=lambda: [900, 950, 999])
+
+    def __post_init__(self) -> None:
+        if self.diagnostic_sample_count < 1:
+            raise ValueError("diagnostic_sample_count must be >= 1")
+        if self.diagnostic_every < 1:
+            raise ValueError("diagnostic_every must be >= 1")
+        if self.max_healthy_final_rms <= 0:
+            raise ValueError("max_healthy_final_rms must be > 0")
+        if self.hard_abort_rms <= self.max_healthy_final_rms:
+            raise ValueError("hard_abort_rms must exceed max_healthy_final_rms")
+        if not self.diagnostic_timesteps:
+            raise ValueError("diagnostic_timesteps must not be empty")
 
 
 @dataclass
 class EvalConfig:
     n_projections: int = 128
     sample_batch_size: int = 256
+    pca_rank: int = 32
 
 
 @dataclass

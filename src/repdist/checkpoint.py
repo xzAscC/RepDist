@@ -11,6 +11,13 @@ from torch.optim import Optimizer
 from repdist.normalize import Normalizer
 
 
+CHECKPOINT_FORMAT = "repdist-checkpoint-v2"
+
+
+class CheckpointCompatibilityError(ValueError):
+    pass
+
+
 def latest_path(ckpt_dir: str | Path) -> Path:
     return Path(ckpt_dir) / "latest.pt"
 
@@ -35,6 +42,8 @@ def save_checkpoint(
     patience_left: int,
     rng_state: dict | None = None,
     extra: dict | None = None,
+    model_spec: dict | None = None,
+    schedule_spec: dict | None = None,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
@@ -47,6 +56,10 @@ def save_checkpoint(
         "patience_left": patience_left,
         "rng": rng_state or capture_rng(),
         "extra": extra or {},
+        "checkpoint_format": CHECKPOINT_FORMAT,
+        "model_spec": model_spec or _model_spec(model),
+        "schedule_spec": schedule_spec or {},
+        "normalizer_fingerprint": normalizer.fingerprint(),
     }
     torch.save(payload, path)
 
@@ -65,10 +78,70 @@ def capture_rng() -> dict:
 def restore_rng(state: dict) -> None:
     random.setstate(state["python"])
     np.random.set_state(state["numpy"])
-    torch.set_rng_state(state["torch"])
+    torch.set_rng_state(state["torch"].cpu().to(torch.uint8))
     if "cuda" in state and torch.cuda.is_available():
-        torch.cuda.set_rng_state_all(state["cuda"])
+        torch.cuda.set_rng_state_all([s.cpu().to(torch.uint8) for s in state["cuda"]])
 
 
 def load_checkpoint(path: Path, map_location: str = "cpu") -> dict:
-    return torch.load(path, map_location=map_location, weights_only=False)
+    payload = torch.load(path, map_location=map_location, weights_only=False)
+    validate_checkpoint_compatibility(payload)
+    return payload
+
+
+def _model_spec(model: nn.Module) -> dict:
+    return {
+        "architecture": type(model).__name__,
+        "data_dim": getattr(model, "data_dim", None),
+        "hidden_dim": getattr(getattr(model, "fc1", None), "out_features", None),
+        "time_embed_dim": getattr(
+            getattr(getattr(model, "time_embed", None), "0", None), "dim", None
+        ),
+        "full_rank_skip": True,
+    }
+
+
+def validate_checkpoint_compatibility(
+    payload: dict,
+    *,
+    model_spec: dict | None = None,
+    schedule_spec: dict | None = None,
+    normalizer_fingerprint: str | None = None,
+) -> None:
+    if not isinstance(payload, dict):
+        raise CheckpointCompatibilityError("checkpoint payload is not a schema")
+    if "checkpoint_format" not in payload:
+        raise CheckpointCompatibilityError("schema-less checkpoint is rejected")
+    if payload["checkpoint_format"] != CHECKPOINT_FORMAT:
+        raise CheckpointCompatibilityError(
+            f"unsupported checkpoint format: {payload['checkpoint_format']!r}"
+        )
+    required = {"model_spec", "schedule_spec", "normalizer_fingerprint"}
+    missing = sorted(required - payload.keys())
+    if missing:
+        raise CheckpointCompatibilityError(
+            f"checkpoint metadata is incomplete: missing {', '.join(missing)}"
+        )
+    for name, expected in (
+        ("model_spec", model_spec),
+        ("schedule_spec", schedule_spec),
+    ):
+        if expected is not None and payload.get(name) != expected:
+            raise CheckpointCompatibilityError(f"checkpoint {name} is incompatible")
+    if (
+        normalizer_fingerprint is not None
+        and payload.get("normalizer_fingerprint") != normalizer_fingerprint
+    ):
+        raise CheckpointCompatibilityError("checkpoint normalizer is incompatible")
+    if "normalizer" not in payload:
+        raise CheckpointCompatibilityError(
+            "checkpoint metadata is incomplete: missing normalizer"
+        )
+    try:
+        normalizer = Normalizer.from_state_dict(payload["normalizer"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise CheckpointCompatibilityError("checkpoint normalizer is invalid") from exc
+    if not normalizer.matches_fingerprint(payload["normalizer_fingerprint"]):
+        raise CheckpointCompatibilityError(
+            "checkpoint normalizer fingerprint does not match payload"
+        )

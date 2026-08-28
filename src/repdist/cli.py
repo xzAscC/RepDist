@@ -4,7 +4,7 @@ import argparse
 from pathlib import Path
 
 from repdist.config import ExperimentConfig
-from repdist.evaluate import evaluate
+from repdist.evaluate import evaluate, visualize_from_saved
 from repdist.extract import ensure_heldout, ensure_train
 from repdist.store import HiddenStateStore
 from repdist.train import train
@@ -28,6 +28,10 @@ def main(argv: list[str] | None = None) -> int:
     p_eval = sub.add_parser("eval", help="evaluate held-out matching")
     p_eval.add_argument("--ckpt", default="best", choices=["best", "latest"])
 
+    sub.add_parser(
+        "viz",
+        help="write memo figures from saved normalized eval tensors or by re-running eval",
+    )
     sub.add_parser("all", help="extract, train, evaluate")
 
     args = parser.parse_args(argv)
@@ -57,6 +61,16 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "eval":
         metrics = evaluate(cfg, ckpt_name=args.ckpt)
         print(metrics)
+        return 0
+
+    if args.cmd == "viz":
+        saved = Path(cfg.paths.outputs) / "metrics" / "eval_tensors.pt"
+        if saved.exists():
+            metrics = visualize_from_saved(cfg)
+        else:
+            metrics = evaluate(cfg, ckpt_name="best")
+        print(metrics)
+        print(f"figures -> {cfg.paths.outputs}/figures")
         return 0
 
     if args.cmd == "all":

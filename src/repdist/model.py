@@ -45,8 +45,13 @@ class NoisePredictor(nn.Module):
         )
         self.fc1 = nn.Linear(data_dim, hidden_dim)
         self.fc2 = nn.Linear(hidden_dim, data_dim)
+        nn.init.zeros_(self.fc2.weight)
+        nn.init.zeros_(self.fc2.bias)
         self.act = nn.SiLU()
 
-    def forward(self, x: Tensor, t: Tensor) -> Tensor:
+    def residual(self, x: Tensor, t: Tensor) -> Tensor:
         hidden = self.act(self.fc1(x) + self.time_embed(t))
         return self.fc2(hidden)
+
+    def forward(self, x: Tensor, t: Tensor) -> Tensor:
+        return self.residual(x, t)
