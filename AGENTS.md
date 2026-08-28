@@ -28,12 +28,17 @@ Training resumes from `checkpoints/latest.pt` unless `--no-resume` is passed.
 | `outputs/figures/` | Spectrum, PCA, loss plots |
 | `outputs/metrics/` | `eval.json` and spectra |
 | `notes/` | Experiment protocol |
+| `runs/rankfix-pilot/` | Isolated corrected pilot normalizer, checkpoints, logs, and outputs |
+| `runs/rankfix/` | Isolated corrected full-run normalizer, checkpoints, logs, and outputs |
 
 ## Conventions
 
 - Match the memo: cosine DDPM (`T=1000`, `s=0.008`, `β≤0.999`), two-layer SiLU MLP (1024-d hidden), global scalar normalization, DDPM reverse with no noise at `t=1`.
+- Corrected runs use the full-rank skip with zero-initialized residual, checkpoint v2, and a frozen normalizer. The standard-normal `N(0,I)` baseline is independent and is evaluated in normalized space; PCA rank is 32.
 - Layer index `16` is `output.hidden_states[16]` (embeddings at 0, after block 16).
 - Val/test are extracted first and never overwritten. Extra train shards are appended only on plateau.
+- Use `configs/rankfix-pilot.yaml` for the 2500-step no-streaming go/no-go run; proceed only with finite diagnostics and normalized reverse RMS ≤3, and stop on hard RMS failures twice. If stable but high-timestep MSE is poor, retry once at half LR. Validation is for tuning only.
+- Old checkpoints are incompatible with corrected runs; never resume the legacy 50k run.
 - Do not commit tensors, checkpoints, or logs. Do not add the nested slides directory.
 - Keep new code CPU-testable. Real OLMo extraction is gated behind `configs/default.yaml`.
 

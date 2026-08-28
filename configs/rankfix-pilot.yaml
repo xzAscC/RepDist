@@ -3,10 +3,10 @@ device: cuda
 
 paths:
   data: data/hidden_states
-  checkpoints: checkpoints
-  logs: logs
-  outputs: outputs
-  normalizer: data/hidden_states/normalizer.pt
+  checkpoints: runs/rankfix-pilot/checkpoints
+  logs: runs/rankfix-pilot/logs
+  outputs: runs/rankfix-pilot/outputs
+  normalizer: runs/rankfix-pilot/normalizer.pt
 
 extract:
   model_name: allenai/Olmo-3-7B-Think
@@ -27,22 +27,28 @@ extract:
 diffusion:
   timesteps: 1000
   cosine_s: 0.008
-  beta_max: 0.999
+  beta_max: 0.99
   hidden_dim: 1024
   time_embed_dim: 128
-  lr: 2.0e-4
+  lr: 1.0e-4
   weight_decay: 0.0
   batch_size: 256
-  max_steps: 50000
+  max_steps: 2500
   warmup_steps: 500
   grad_clip: 1.0
-  eval_every: 500
-  ckpt_every: 500
+  eval_every: 250
+  ckpt_every: 250
   log_every: 50
   patience: 8
   min_delta: 1.0e-4
-  stream_on_plateau: true
+  stream_on_plateau: false
+  diagnostic_sample_count: 16
+  diagnostic_every: 250
+  max_healthy_final_rms: 3.0
+  hard_abort_rms: 25.0
+  diagnostic_timesteps: [900, 950, 999]
 
 eval:
   n_projections: 128
   sample_batch_size: 256
+  pca_rank: 32

@@ -6,6 +6,7 @@ paths:
   checkpoints: runs/smoke/checkpoints
   logs: runs/smoke/logs
   outputs: runs/smoke/outputs
+  normalizer: runs/smoke/normalizer.pt
 
 extract:
   model_name: synthetic

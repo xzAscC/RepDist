@@ -9,4 +9,8 @@
 7. Fit \(\mu_{\mathrm{train}}\) and scalar \(s_{\mathrm{train}}\) on train only.
 8. Train the cosine DDPM MLP. Log train/val MSE. Save `latest` / `best` / step checkpoints.
 9. If val loss plateaus, extract another train chunk and continue (resume-safe).
-10. Generate as many samples as test points. Compare real / diffusion / Gaussian via spectrum, \(d_{\mathrm{eff}}\), PCA, SWD.
+10. Freeze the fitted normalizer for the entire run. Generate as many samples as test points in normalized space.
+11. Compare real / diffusion / independent standard-normal \(\mathcal{N}(0,I)\) samples via spectrum, \(d_{\mathrm{eff}}\), PCA rank 32, and SWD. Do not fit the baseline covariance.
+12. Use validation only for tuning. The pilot is 2,500 steps with no streaming and 250-step eval/checkpoint/diagnostic cadence; go forward only when diagnostics are finite and final/max normalized reverse RMS is at most 3. Hard-abort at RMS 25.
+13. For the full corrected run use 50,000 steps, the original cosine schedule and 1024-wide SiLU MLP, 500-step cadence, and allow streaming. If stable but high-timestep MSE is poor, retry once at half the learning rate; if RMS hard-fails twice, stop.
+14. Keep corrected artifacts isolated under `runs/rankfix-pilot/` or `runs/rankfix/`. Old checkpoints are incompatible and must never be resumed.
