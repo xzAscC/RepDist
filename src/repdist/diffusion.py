@@ -37,6 +37,7 @@ def diffusion_loss(
     x0: Tensor,
     schedule: CosineSchedule,
     generator: torch.Generator | None = None,
+    min_snr_gamma: float = 0.0,
 ) -> Tensor:
     batch = x0.shape[0]
     t = torch.randint(
@@ -49,7 +50,13 @@ def diffusion_loss(
     noise = torch.randn(x0.shape, device=x0.device, dtype=x0.dtype, generator=generator)
     xt = q_sample(x0, t, noise, schedule)
     pred = predict_epsilon(model, xt, t, schedule)
-    return torch.mean((noise - pred) ** 2)
+    per_sample = torch.mean((noise - pred) ** 2, dim=1)
+    if min_snr_gamma <= 0:
+        return per_sample.mean()
+    alpha_bar = extract(schedule.alphas_cumprod, t, x0.shape).squeeze(-1)
+    snr = alpha_bar / (1.0 - alpha_bar).clamp(min=1e-8)
+    weight = torch.clamp(snr, max=min_snr_gamma) / snr.clamp(min=1e-8)
+    return torch.mean(weight * per_sample)
 
 
 @torch.no_grad()

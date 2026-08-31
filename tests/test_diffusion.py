@@ -95,6 +95,23 @@ def test_diffusion_loss_uses_full_rank_epsilon_path():
     assert torch.allclose(loss, expected)
 
 
+def test_min_snr_loss_is_finite_and_differs_from_uniform():
+    sched = CosineSchedule(timesteps=20)
+    x0 = torch.randn(16, 8)
+    uniform = diffusion_loss(
+        ZeroResidual(), x0, sched, generator=torch.Generator().manual_seed(4)
+    )
+    weighted = diffusion_loss(
+        ZeroResidual(),
+        x0,
+        sched,
+        generator=torch.Generator().manual_seed(4),
+        min_snr_gamma=5.0,
+    )
+    assert torch.isfinite(weighted)
+    assert not torch.equal(uniform, weighted)
+
+
 def test_p_sample_generator_is_deterministic_with_full_rank_path():
     sched = CosineSchedule(timesteps=10)
     xt = torch.randn(3, 8)
