@@ -3,16 +3,16 @@ import torch
 from repdist.model import NoisePredictor
 
 
-def test_noise_predictor_exposes_1024_wide_residual_path():
-    model = NoisePredictor(data_dim=4096, hidden_dim=1024, time_embed_dim=128)
+def test_noise_predictor_exposes_8196_wide_residual_path():
+    model = NoisePredictor(data_dim=4096, hidden_dim=8196, time_embed_dim=128)
     x = torch.randn(2, 4096)
     t = torch.tensor([0, 999])
 
     residual = model.residual(x, t)
 
     assert residual.shape == x.shape
-    assert model.fc1.out_features == 1024
-    assert model.fc2.in_features == 1024
+    assert model.fc1.out_features == 8196
+    assert model.fc2.in_features == 8196
     assert torch.isfinite(residual).all()
 
 
