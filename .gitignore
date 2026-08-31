@@ -26,3 +26,12 @@ runs/
 !outputs/figures/.gitkeep
 !outputs/metrics/.gitkeep
 !logs/.gitkeep
+
+# notebooks
+notebooks/
+
+#checkpoints
+outputs/
+
+# Agents
+.omo/
