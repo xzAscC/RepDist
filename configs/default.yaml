@@ -13,6 +13,7 @@ extract:
   dataset_name: allenai/Dolci-Think-SFT-7B
   dataset_split: train
   layer: 16
+  layers: [1, 8, 16, 24, 32]
   max_prompt_tokens: 1024
   batch_size: 2
   shard_size: 512
@@ -28,7 +29,7 @@ diffusion:
   timesteps: 1000
   cosine_s: 0.008
   beta_max: 0.999
-  hidden_dim: 1024
+  hidden_dim: 8196
   time_embed_dim: 128
   lr: 2.0e-4
   weight_decay: 0.0
