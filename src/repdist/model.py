@@ -44,6 +44,7 @@ class NoisePredictor(nn.Module):
         self.data_dim = data_dim
         self.hidden_dim = hidden_dim
         self.n_hidden_layers = n_hidden_layers
+        self.residual_scale = hidden_dim**-0.5
         self.time_embed = nn.Sequential(
             SinusoidalTimeEmbedding(time_embed_dim),
             nn.Linear(time_embed_dim, hidden_dim),
@@ -64,7 +65,7 @@ class NoisePredictor(nn.Module):
         hidden = self.act(self.fc1(x) + self.time_embed(t))
         for layer in self.hidden_layers:
             hidden = self.act(layer(hidden))
-        return self.fc2(hidden)
+        return self.fc2(hidden) * self.residual_scale
 
     def forward(self, x: Tensor, t: Tensor) -> Tensor:
         return self.residual(x, t)

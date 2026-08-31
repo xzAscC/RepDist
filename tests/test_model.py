@@ -30,3 +30,17 @@ def test_fresh_noise_predictor_has_zero_residual():
     t = torch.tensor([0, 1, 17, 500, 999])
 
     assert torch.equal(model.residual(x, t), torch.zeros_like(x))
+
+
+def test_residual_output_is_width_normalized():
+    model = NoisePredictor(
+        data_dim=8, hidden_dim=25, time_embed_dim=6, zero_init_output=False
+    )
+    torch.nn.init.ones_(model.fc2.weight)
+    torch.nn.init.zeros_(model.fc2.bias)
+    x = torch.zeros(2, 8)
+    t = torch.zeros(2, dtype=torch.long)
+    hidden = model.act(model.fc1(x) + model.time_embed(t))
+    unscaled = hidden @ model.fc2.weight.T
+    assert torch.allclose(model.residual(x, t), unscaled * (25**-0.5))
+    assert model.residual_scale == 25**-0.5
