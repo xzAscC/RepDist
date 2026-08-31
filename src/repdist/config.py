@@ -22,6 +22,7 @@ class ExtractConfig:
     dataset_name: str = "allenai/Dolci-Think-SFT-7B"
     dataset_split: str = "train"
     layer: int = 16
+    layers: list[int] = field(default_factory=list)
     max_prompt_tokens: int = 1024
     batch_size: int = 2
     shard_size: int = 512
@@ -41,8 +42,12 @@ class DiffusionConfig:
     timesteps: int = 1000
     cosine_s: float = 0.008
     beta_max: float = 0.999
-    hidden_dim: int = 1024
+    hidden_dim: int = 8196
+    n_hidden_layers: int = 1
     time_embed_dim: int = 128
+    min_snr_gamma: float = 0.0
+    latent_rank: int = 0
+    zero_init_output: bool = True
     lr: float = 2e-4
     weight_decay: float = 0.0
     batch_size: int = 256
@@ -72,6 +77,12 @@ class DiffusionConfig:
             raise ValueError("hard_abort_rms must exceed max_healthy_final_rms")
         if not self.diagnostic_timesteps:
             raise ValueError("diagnostic_timesteps must not be empty")
+        if self.n_hidden_layers < 1:
+            raise ValueError("n_hidden_layers must be >= 1")
+        if self.min_snr_gamma < 0:
+            raise ValueError("min_snr_gamma must be >= 0")
+        if self.latent_rank < 0:
+            raise ValueError("latent_rank must be >= 0")
 
 
 @dataclass
@@ -79,6 +90,7 @@ class EvalConfig:
     n_projections: int = 128
     sample_batch_size: int = 256
     pca_rank: int = 32
+    match_train_rms: bool = False
 
 
 @dataclass
