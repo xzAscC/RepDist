@@ -25,6 +25,7 @@ from repdist.diffusion import (
     sample_with_diagnostics,
 )
 from repdist.extract import ensure_train
+from repdist.latent import LatentPCA
 from repdist.model import NoisePredictor
 from repdist.normalize import Normalizer
 from repdist.schedule import CosineSchedule
@@ -61,13 +62,14 @@ def eval_loss(
     schedule: CosineSchedule,
     batch_size: int,
     device: str,
+    min_snr_gamma: float = 0.0,
 ) -> float:
     model.eval()
     total = 0.0
     count = 0
     for start in range(0, data.shape[0], batch_size):
         batch = data[start : start + batch_size].to(device)
-        loss = diffusion_loss(model, batch, schedule)
+        loss = diffusion_loss(model, batch, schedule, min_snr_gamma=min_snr_gamma)
         total += float(loss.item()) * batch.shape[0]
         count += batch.shape[0]
     return total / max(count, 1)
@@ -116,12 +118,22 @@ def train(cfg: ExperimentConfig, resume: bool = True) -> dict:
 
     x_train = normalizer.encode(train_hidden)
     x_val = normalizer.encode(val_hidden)
+    pca = None
+    if cfg.diffusion.latent_rank:
+        if resuming and payload is not None and payload.get("extra", {}).get("pca"):
+            pca = LatentPCA.from_state_dict(payload["extra"]["pca"])
+        else:
+            pca = LatentPCA.fit(x_train, cfg.diffusion.latent_rank)
+        x_train = pca.encode(x_train)
+        x_val = pca.encode(x_val)
     data_dim = x_train.shape[1]
 
     model = NoisePredictor(
         data_dim,
         hidden_dim=cfg.diffusion.hidden_dim,
         time_embed_dim=cfg.diffusion.time_embed_dim,
+        n_hidden_layers=cfg.diffusion.n_hidden_layers,
+        zero_init_output=cfg.diffusion.zero_init_output,
     ).to(device)
     optimizer = AdamW(
         model.parameters(),
@@ -139,8 +151,11 @@ def train(cfg: ExperimentConfig, resume: bool = True) -> dict:
         "architecture": "NoisePredictor",
         "data_dim": data_dim,
         "hidden_dim": cfg.diffusion.hidden_dim,
+        "n_hidden_layers": cfg.diffusion.n_hidden_layers,
         "time_embed_dim": cfg.diffusion.time_embed_dim,
         "full_rank_skip": True,
+        "latent_rank": cfg.diffusion.latent_rank,
+        "zero_init_output": cfg.diffusion.zero_init_output,
     }
     schedule_spec = {
         "timesteps": cfg.diffusion.timesteps,
@@ -161,6 +176,9 @@ def train(cfg: ExperimentConfig, resume: bool = True) -> dict:
         )
         x_train = normalizer.encode(train_hidden)
         x_val = normalizer.encode(val_hidden)
+        if pca is not None:
+            x_train = pca.encode(x_train)
+            x_val = pca.encode(x_val)
         model.load_state_dict(payload["model"])
         optimizer.load_state_dict(payload["optimizer"])
         step = int(payload["step"])
@@ -169,6 +187,8 @@ def train(cfg: ExperimentConfig, resume: bool = True) -> dict:
         if payload.get("rng"):
             restore_rng(payload["rng"])
         print(f"resumed from step {step}")
+
+    extra = {"pca": pca.state_dict()} if pca is not None else {}
 
     def make_loader(data: torch.Tensor) -> DataLoader:
         batch_size = min(cfg.diffusion.batch_size, max(int(data.shape[0]), 1))
@@ -200,7 +220,12 @@ def train(cfg: ExperimentConfig, resume: bool = True) -> dict:
                 cfg.diffusion.max_steps,
             )
         optimizer.zero_grad(set_to_none=True)
-        loss = diffusion_loss(model, batch, schedule)
+        loss = diffusion_loss(
+            model,
+            batch,
+            schedule,
+            min_snr_gamma=cfg.diffusion.min_snr_gamma,
+        )
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.diffusion.grad_clip)
         optimizer.step()
@@ -219,7 +244,14 @@ def train(cfg: ExperimentConfig, resume: bool = True) -> dict:
             pbar.set_postfix(loss=f"{loss.item():.4f}")
 
         if step % cfg.diffusion.eval_every == 0 or step == cfg.diffusion.max_steps:
-            val = eval_loss(model, x_val, schedule, cfg.diffusion.batch_size, device)
+            val = eval_loss(
+                model,
+                x_val,
+                schedule,
+                cfg.diffusion.batch_size,
+                device,
+                min_snr_gamma=cfg.diffusion.min_snr_gamma,
+            )
             last_val = val
             _append_jsonl(
                 log_path,
@@ -301,6 +333,7 @@ def train(cfg: ExperimentConfig, resume: bool = True) -> dict:
                     patience_left=patience_left,
                     model_spec=model_spec,
                     schedule_spec=schedule_spec,
+                    extra=extra,
                 )
             else:
                 patience_left -= 1
@@ -318,6 +351,9 @@ def train(cfg: ExperimentConfig, resume: bool = True) -> dict:
                 train_hidden = ensure_train(cfg, store, device, n_target=target)
                 x_train = normalizer.encode(train_hidden)
                 x_val = normalizer.encode(store.load_split("val"))
+                if pca is not None:
+                    x_train = pca.encode(x_train)
+                    x_val = pca.encode(x_val)
                 loader = make_loader(x_train)
                 iterator = iter(loader)
                 patience_left = cfg.diffusion.patience
@@ -344,6 +380,7 @@ def train(cfg: ExperimentConfig, resume: bool = True) -> dict:
                 rng_state=rng,
                 model_spec=model_spec,
                 schedule_spec=schedule_spec,
+                extra=extra,
             )
             save_checkpoint(
                 step_path(ckpt_dir, step),
@@ -357,6 +394,7 @@ def train(cfg: ExperimentConfig, resume: bool = True) -> dict:
                 rng_state=rng,
                 model_spec=model_spec,
                 schedule_spec=schedule_spec,
+                extra=extra,
             )
 
     pbar.close()

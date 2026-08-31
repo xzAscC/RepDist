@@ -93,11 +93,14 @@ def _model_spec(model: nn.Module) -> dict:
     return {
         "architecture": type(model).__name__,
         "data_dim": getattr(model, "data_dim", None),
-        "hidden_dim": getattr(getattr(model, "fc1", None), "out_features", None),
+        "hidden_dim": getattr(model, "hidden_dim", None)
+        or getattr(getattr(model, "fc1", None), "out_features", None),
+        "n_hidden_layers": getattr(model, "n_hidden_layers", 1),
         "time_embed_dim": getattr(
             getattr(getattr(model, "time_embed", None), "0", None), "dim", None
         ),
         "full_rank_skip": True,
+        "latent_rank": getattr(model, "latent_rank", 0),
     }
 
 
