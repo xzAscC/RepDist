@@ -158,3 +158,43 @@ def test_hard_abort_reverse_trajectory_raises(tmp_path: Path, monkeypatch):
         assert "hard-abort" in str(exc)
     else:
         raise AssertionError("hard-abort RMS did not stop training")
+
+
+def test_train_with_lr_retry_halves_lr_and_restarts_fresh(tmp_path: Path, monkeypatch):
+    cfg = _smoke_cfg(tmp_path, max_steps=2)
+    calls: list[float] = []
+
+    def flaky(train_cfg, resume=True):
+        calls.append(train_cfg.diffusion.lr)
+        if len(calls) < 3:
+            raise RuntimeError(
+                "reverse trajectory RMS 25.1 reached hard-abort threshold 25 at step 13000"
+            )
+        return {"step": 2, "best_val": 0.4, "last_val": 0.4}
+
+    monkeypatch.setattr(train_module, "train", flaky)
+    result = train_module.train_with_lr_retry(cfg, resume=False)
+    assert result == {"step": 2, "best_val": 0.4, "last_val": 0.4}
+    assert calls == [1.0e-3, 5.0e-4, 2.5e-4]
+    records = [
+        json.loads(line)
+        for line in (Path(cfg.paths.logs) / "train.jsonl").read_text().splitlines()
+    ]
+    retries = [r for r in records if r.get("event") == "lr_retry"]
+    assert [r["lr"] for r in retries] == [5.0e-4, 2.5e-4]
+    assert all(r["attempt"] in (1, 2) for r in retries)
+
+
+def test_train_with_lr_retry_gives_up_after_max_retries(tmp_path: Path, monkeypatch):
+    cfg = _smoke_cfg(tmp_path, max_steps=1)
+
+    def always_exploding(train_cfg, resume=True):
+        raise RuntimeError("nonfinite reverse trajectory at step 5")
+
+    monkeypatch.setattr(train_module, "train", always_exploding)
+    try:
+        train_module.train_with_lr_retry(cfg, resume=False, max_lr_retries=2)
+    except RuntimeError as exc:
+        assert "reverse trajectory" in str(exc)
+    else:
+        raise AssertionError("retry loop must re-raise after exhausting attempts")

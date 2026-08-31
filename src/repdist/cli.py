@@ -9,7 +9,7 @@ from repdist.evaluate import compare_layer_runs, evaluate, visualize_from_saved
 from repdist.extract import ensure_heldout, ensure_train, layer_stores
 from repdist.layers import apply_layer_paths, resolved_layers
 from repdist.store import HiddenStateStore
-from repdist.train import train
+from repdist.train import train, train_with_lr_retry
 
 
 def _load_cfg(path: str) -> ExperimentConfig:
@@ -90,7 +90,7 @@ def main(argv: list[str] | None = None) -> int:
         result = None
         for layer_cfg in _layer_cfgs(cfg, args.layer):
             _ensure_dirs(layer_cfg)
-            result = train(layer_cfg, resume=not args.no_resume)
+            result = train_with_lr_retry(layer_cfg, resume=not args.no_resume)
             print(result)
         return 0
 
@@ -122,7 +122,7 @@ def main(argv: list[str] | None = None) -> int:
         ensure_train(cfg, store, device)
         for layer_cfg in _layer_cfgs(cfg, args.layer):
             _ensure_dirs(layer_cfg)
-            print(train(layer_cfg, resume=True))
+            print(train_with_lr_retry(layer_cfg, resume=True))
             print(evaluate(layer_cfg, ckpt_name="best"))
         return 0
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 
 import torch
@@ -156,6 +157,7 @@ def train(cfg: ExperimentConfig, resume: bool = True) -> dict:
         "full_rank_skip": True,
         "latent_rank": cfg.diffusion.latent_rank,
         "zero_init_output": cfg.diffusion.zero_init_output,
+        "residual_scale": model.residual_scale,
     }
     schedule_spec = {
         "timesteps": cfg.diffusion.timesteps,
@@ -399,3 +401,39 @@ def train(cfg: ExperimentConfig, resume: bool = True) -> dict:
 
     pbar.close()
     return {"step": step, "best_val": best_val, "last_val": last_val}
+
+
+def train_with_lr_retry(
+    cfg: ExperimentConfig, resume: bool = True, max_lr_retries: int = 3
+) -> dict:
+    """Train, restarting fresh at half LR when the reverse trajectory fails.
+
+    Reverse-trajectory failures (nonfinite or hard-abort RMS) are stability
+    failures; the retry halves the learning rate and wipes the layer's
+    checkpoints and log so the attempt starts clean. Data, architecture, and
+    schedule are untouched — only the LR may differ between attempts.
+    """
+    attempt = 0
+    while True:
+        try:
+            return train(cfg, resume=resume)
+        except RuntimeError as exc:
+            if "reverse trajectory" not in str(exc) or attempt >= max_lr_retries:
+                raise
+            attempt += 1
+            cfg.diffusion.lr = cfg.diffusion.lr / 2.0
+            shutil.rmtree(cfg.paths.checkpoints, ignore_errors=True)
+            Path(cfg.paths.checkpoints).mkdir(parents=True, exist_ok=True)
+            log_path = Path(cfg.paths.logs) / "train.jsonl"
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            if attempt == 1:
+                log_path.unlink(missing_ok=True)
+            _append_jsonl(
+                log_path,
+                {
+                    "event": "lr_retry",
+                    "attempt": attempt,
+                    "lr": cfg.diffusion.lr,
+                    "reason": str(exc),
+                },
+            )
