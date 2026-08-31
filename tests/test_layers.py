@@ -54,6 +54,18 @@ def test_multi_layer_protocol_pre_extracts_aligned_data_without_streaming():
         assert fixed.diffusion.stream_on_plateau is False, path
 
 
+def test_mlp1024_comparison_config_isolates_runs_and_shares_store():
+    cfg = ExperimentConfig.load("configs/mlp-1024.yaml")
+    base = ExperimentConfig.load("configs/default.yaml")
+    assert cfg.diffusion.hidden_dim == 1024
+    assert cfg.paths.data == base.paths.data
+    assert cfg.paths.checkpoints.startswith("runs/mlp1024/")
+    assert cfg.paths.logs.startswith("runs/mlp1024/")
+    assert cfg.paths.outputs.startswith("runs/mlp1024/")
+    assert cfg.diffusion.lr == base.diffusion.lr
+    assert cfg.diffusion.weight_decay == base.diffusion.weight_decay
+
+
 def test_layer_cfgs_loop_all_main_layers_unless_restricted():
     cfg = ExperimentConfig.load("configs/default.yaml")
     all_cfgs = _layer_cfgs(cfg, None)

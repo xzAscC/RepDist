@@ -1,0 +1,49 @@
+seed: 0
+device: cuda
+
+paths:
+  data: data/hidden_states
+  checkpoints: runs/mlp1024/checkpoints
+  logs: runs/mlp1024/logs
+  outputs: runs/mlp1024/outputs
+  normalizer: data/hidden_states/normalizer.pt
+
+extract:
+  model_name: allenai/Olmo-3-7B-Think
+  dataset_name: allenai/Dolci-Think-SFT-7B
+  dataset_split: train
+  layer: 16
+  layers: [1, 8, 16, 24, 32]
+  max_prompt_tokens: 1024
+  batch_size: 2
+  shard_size: 512
+  n_train_initial: 50000
+  n_val: 5000
+  n_test: 5000
+  n_train_stream_chunk: 5000
+  max_train_samples: 50000
+  dtype: bfloat16
+  attn_implementation: sdpa
+
+diffusion:
+  timesteps: 1000
+  cosine_s: 0.008
+  beta_max: 0.999
+  hidden_dim: 1024
+  time_embed_dim: 128
+  lr: 2.0e-4
+  weight_decay: 0.0
+  batch_size: 256
+  max_steps: 50000
+  warmup_steps: 500
+  grad_clip: 1.0
+  eval_every: 500
+  ckpt_every: 500
+  log_every: 50
+  patience: 8
+  min_delta: 1.0e-4
+  stream_on_plateau: false
+
+eval:
+  n_projections: 128
+  sample_batch_size: 256
