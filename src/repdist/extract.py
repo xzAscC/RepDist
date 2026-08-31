@@ -7,6 +7,7 @@ from torch import Tensor
 from tqdm import tqdm
 
 from repdist.config import ExperimentConfig
+from repdist.layers import layer_store_root, resolved_layers
 from repdist.store import HiddenStateStore
 
 
@@ -43,6 +44,34 @@ def synthetic_hidden_states(
     z = torch.randn(n, rank, generator=g)
     noise = 0.05 * torch.randn(n, dim, generator=g)
     return z @ factors.T + noise
+
+
+def layer_stores(
+    cfg: ExperimentConfig, store: HiddenStateStore | None = None
+) -> dict[int, HiddenStateStore]:
+    layers = resolved_layers(cfg)
+    if len(layers) == 1:
+        if store is None:
+            store = HiddenStateStore(cfg.paths.data)
+        return {layers[0]: store}
+    return {
+        layer: HiddenStateStore(layer_store_root(cfg.paths.data, layer, len(layers)))
+        for layer in layers
+    }
+
+
+def _shared_cursor(stores: dict[int, HiddenStateStore]) -> int:
+    cursors = [int(item.manifest.get("cursor", 0)) for item in stores.values()]
+    if any(cursor != cursors[0] for cursor in cursors):
+        raise RuntimeError("layer stores have diverged dataset cursors")
+    return cursors[0]
+
+
+def _shared_n_train(stores: dict[int, HiddenStateStore]) -> int:
+    counts = [item.n_train() for item in stores.values()]
+    if any(count != counts[0] for count in counts):
+        raise RuntimeError("layer stores have diverged train counts")
+    return counts[0]
 
 
 def _iter_dataset(cfg: ExperimentConfig, skip: int) -> Iterator[dict]:
@@ -103,20 +132,41 @@ def _encode_batch(
 
 
 @torch.inference_mode()
-def _extract_batch(model, batch: dict, layer: int) -> Tensor:
+def _extract_batch(model, batch: dict, layers: list[int]) -> dict[int, Tensor]:
     out = model(
         input_ids=batch["input_ids"],
         attention_mask=batch.get("attention_mask"),
         output_hidden_states=True,
         use_cache=False,
     )
-    hidden = out.hidden_states[layer]
-    return hidden[:, -1, :].float().cpu()
+    hidden_states = out.hidden_states
+    n_hidden = len(hidden_states)
+    extracted: dict[int, Tensor] = {}
+    for layer in layers:
+        if layer < 0 or layer >= n_hidden:
+            raise ValueError(
+                f"layer {layer} is outside hidden_states length {n_hidden}"
+            )
+        extracted[layer] = hidden_states[layer][:, -1, :].float().cpu()
+    return extracted
+
+
+def _write_split(
+    stores: dict[int, HiddenStateStore],
+    hidden: dict[int, Tensor],
+    split: str,
+    cursor: int,
+) -> None:
+    for layer, tensor in hidden.items():
+        if split in {"val", "test"}:
+            stores[layer].save_split(split, tensor, cursor)
+        else:
+            stores[layer].append_train(tensor, cursor)
 
 
 def extract_count(
     cfg: ExperimentConfig,
-    store: HiddenStateStore,
+    store: HiddenStateStore | None,
     n: int,
     *,
     split: str,
@@ -125,32 +175,35 @@ def extract_count(
     tokenizer=None,
     model=None,
 ) -> Tensor:
+    stores = layer_stores(cfg, store)
+    layers = list(stores)
+    primary = cfg.extract.layer if cfg.extract.layer in stores else layers[0]
     if cfg.extract.model_name == "synthetic":
-        start = store.manifest.get("cursor", 0)
-        hidden = synthetic_hidden_states(
-            n,
-            cfg.extract.synthetic_dim,
-            cfg.extract.synthetic_rank,
-            seed + start,
-        )
+        start = _shared_cursor(stores)
+        hidden = {
+            layer: synthetic_hidden_states(
+                n,
+                cfg.extract.synthetic_dim,
+                cfg.extract.synthetic_rank,
+                seed + start + 17 * layer,
+            )
+            for layer in layers
+        }
         cursor = start + n
-        if split in {"val", "test"}:
-            store.save_split(split, hidden, cursor)
-        else:
-            store.append_train(hidden, cursor)
-        return hidden
+        _write_split(stores, hidden, split, cursor)
+        return hidden[primary]
 
     owns_model = model is None
     if tokenizer is None or model is None:
         tokenizer, model = _load_lm(cfg, device)
     model_device = next(model.parameters()).device
-    skip = int(store.manifest.get("cursor", 0))
+    skip = _shared_cursor(stores)
     batch_prompts: list[list[dict]] = []
-    collected: list[Tensor] = []
+    collected: dict[int, list[Tensor]] = {layer: [] for layer in layers}
     seen = 0
     cursor = skip
     iterator = _iter_dataset(cfg, skip)
-    pbar = tqdm(total=n, desc=f"extract-{split}")
+    pbar = tqdm(total=n, desc=f"extract-{split}-L{','.join(str(x) for x in layers)}")
     for row in iterator:
         cursor += 1
         messages = row.get("messages")
@@ -165,10 +218,11 @@ def extract_count(
         enc = _encode_batch(
             tokenizer, batch_prompts, cfg.extract.max_prompt_tokens, model_device
         )
-        hidden = _extract_batch(model, enc, cfg.extract.layer)
-        collected.append(hidden)
-        seen += hidden.shape[0]
-        pbar.update(hidden.shape[0])
+        batch_hidden = _extract_batch(model, enc, layers)
+        for layer, tensor in batch_hidden.items():
+            collected[layer].append(tensor)
+        seen += next(iter(batch_hidden.values())).shape[0]
+        pbar.update(next(iter(batch_hidden.values())).shape[0])
         batch_prompts = []
         if seen >= n:
             break
@@ -176,35 +230,37 @@ def extract_count(
         enc = _encode_batch(
             tokenizer, batch_prompts, cfg.extract.max_prompt_tokens, model_device
         )
-        hidden = _extract_batch(model, enc, cfg.extract.layer)
-        collected.append(hidden)
-        seen += hidden.shape[0]
-        pbar.update(hidden.shape[0])
+        batch_hidden = _extract_batch(model, enc, layers)
+        for layer, tensor in batch_hidden.items():
+            collected[layer].append(tensor)
+        seen += next(iter(batch_hidden.values())).shape[0]
+        pbar.update(next(iter(batch_hidden.values())).shape[0])
     pbar.close()
-    if not collected:
+    if not collected[primary]:
         raise RuntimeError("extracted zero hidden states")
-    hidden = torch.cat(collected, dim=0)[:n]
-    if split in {"val", "test"}:
-        store.save_split(split, hidden, cursor)
-    else:
-        store.append_train(hidden, cursor)
+    hidden = {layer: torch.cat(parts, dim=0)[:n] for layer, parts in collected.items()}
+    _write_split(stores, hidden, split, cursor)
     if owns_model:
         del model
         if device == "cuda":
             torch.cuda.empty_cache()
-    return hidden
+    return hidden[primary]
 
 
 def ensure_heldout(
     cfg: ExperimentConfig,
-    store: HiddenStateStore,
+    store: HiddenStateStore | None,
     device: str,
     tokenizer=None,
     model=None,
 ) -> None:
-    if store.has_val_test():
+    stores = layer_stores(cfg, store)
+    have = [item.has_val_test() for item in stores.values()]
+    if all(have):
         return
-    if not store.val_path().exists():
+    if any(have) and not all(have):
+        raise RuntimeError("layer stores have partial val/test caches")
+    if not all(path.val_path().exists() for path in stores.values()):
         extract_count(
             cfg,
             store,
@@ -215,7 +271,7 @@ def ensure_heldout(
             tokenizer=tokenizer,
             model=model,
         )
-    if not store.test_path().exists():
+    if not all(path.test_path().exists() for path in stores.values()):
         extract_count(
             cfg,
             store,
@@ -230,15 +286,17 @@ def ensure_heldout(
 
 def ensure_train(
     cfg: ExperimentConfig,
-    store: HiddenStateStore,
+    store: HiddenStateStore | None,
     device: str,
     n_target: int | None = None,
 ) -> Tensor:
+    stores = layer_stores(cfg, store)
+    primary = cfg.extract.layer if cfg.extract.layer in stores else next(iter(stores))
     tokenizer = model = None
     owns_model = False
     if cfg.extract.model_name != "synthetic":
-        need_model = (not store.has_val_test()) or (
-            store.n_train()
+        need_model = (not all(item.has_val_test() for item in stores.values())) or (
+            _shared_n_train(stores)
             < min(
                 n_target or cfg.extract.n_train_initial, cfg.extract.max_train_samples
             )
@@ -250,7 +308,7 @@ def ensure_train(
         ensure_heldout(cfg, store, device, tokenizer=tokenizer, model=model)
         target = n_target or cfg.extract.n_train_initial
         target = min(target, cfg.extract.max_train_samples)
-        have = store.n_train()
+        have = _shared_n_train(stores)
         while have < target:
             chunk = min(cfg.extract.n_train_stream_chunk, target - have)
             extract_count(
@@ -263,10 +321,10 @@ def ensure_train(
                 tokenizer=tokenizer,
                 model=model,
             )
-            have = store.n_train()
+            have = _shared_n_train(stores)
     finally:
         if owns_model:
             del model
             if device == "cuda":
                 torch.cuda.empty_cache()
-    return store.load_train()
+    return stores[primary].load_train()
