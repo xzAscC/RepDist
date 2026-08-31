@@ -411,3 +411,58 @@ def write_figures(
     plot_projections(real, generated, random, paths[5])
     plot_loss(log_path, paths[6])
     return paths
+
+
+def write_layer_comparison(layer_metrics: dict[int, dict], fig_dir: Path) -> list[Path]:
+    if not layer_metrics:
+        raise ValueError("layer_metrics must not be empty")
+    _style()
+    fig_dir.mkdir(parents=True, exist_ok=True)
+    layers = sorted(layer_metrics)
+    swd_diff = [layer_metrics[k]["swd_real_diffusion"] for k in layers]
+    swd_rand = [layer_metrics[k]["swd_real_random"] for k in layers]
+    deff_real = [layer_metrics[k]["d_eff_real"] for k in layers]
+    deff_diff = [layer_metrics[k]["d_eff_diffusion"] for k in layers]
+    deff_rand = [layer_metrics[k]["d_eff_random"] for k in layers]
+    pca_err_diff = [
+        layer_metrics[k]["pca_covariance_relative_error_diffusion"] for k in layers
+    ]
+    pca_err_rand = [
+        layer_metrics[k]["pca_covariance_relative_error_random"] for k in layers
+    ]
+
+    swd_path = fig_dir / "swd_vs_layer.png"
+    fig, ax = plt.subplots(figsize=(6.2, 4.2))
+    ax.plot(layers, swd_diff, "o-", color=DIFF, label="diffusion")
+    ax.plot(layers, swd_rand, "s--", color=RANDOM, label=RANDOM_LABEL)
+    ax.set_xlabel("layer")
+    ax.set_ylabel("sliced Wasserstein-2")
+    ax.legend(frameon=False)
+    fig.tight_layout()
+    fig.savefig(swd_path)
+    plt.close(fig)
+
+    deff_path = fig_dir / "deff_vs_layer.png"
+    fig, ax = plt.subplots(figsize=(6.2, 4.2))
+    ax.plot(layers, deff_real, "o-", color=REAL, label="real")
+    ax.plot(layers, deff_diff, "s-.", color=DIFF, label="diffusion")
+    ax.plot(layers, deff_rand, "^--", color=RANDOM, label=RANDOM_LABEL)
+    ax.set_xlabel("layer")
+    ax.set_ylabel(r"$d_{\mathrm{eff}}$")
+    ax.set_yscale("log")
+    ax.legend(frameon=False)
+    fig.tight_layout()
+    fig.savefig(deff_path)
+    plt.close(fig)
+
+    pca_path = fig_dir / "pca_cov_error_vs_layer.png"
+    fig, ax = plt.subplots(figsize=(6.2, 4.2))
+    ax.plot(layers, pca_err_diff, "o-", color=DIFF, label="diffusion")
+    ax.plot(layers, pca_err_rand, "s--", color=RANDOM, label=RANDOM_LABEL)
+    ax.set_xlabel("layer")
+    ax.set_ylabel("PCA-32 covariance relative error")
+    ax.legend(frameon=False)
+    fig.tight_layout()
+    fig.savefig(pca_path)
+    plt.close(fig)
+    return [swd_path, deff_path, pca_path]
