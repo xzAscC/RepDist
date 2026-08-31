@@ -17,7 +17,7 @@ extract:
   max_prompt_tokens: 1024
   batch_size: 2
   shard_size: 512
-  n_train_initial: 10000
+  n_train_initial: 50000
   n_val: 5000
   n_test: 5000
   n_train_stream_chunk: 5000
@@ -42,7 +42,7 @@ diffusion:
   log_every: 50
   patience: 8
   min_delta: 1.0e-4
-  stream_on_plateau: true
+  stream_on_plateau: false
 
 eval:
   n_projections: 128

@@ -42,7 +42,7 @@ diffusion:
   log_every: 50
   patience: 8
   min_delta: 1.0e-4
-  stream_on_plateau: true
+  stream_on_plateau: false
   diagnostic_sample_count: 16
   diagnostic_every: 500
   max_healthy_final_rms: 3.0

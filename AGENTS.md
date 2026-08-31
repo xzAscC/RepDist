@@ -41,6 +41,7 @@ uv run repdist --config configs/default.yaml --layer 16 train
 - Val/test are extracted first and never overwritten. Extra train shards are appended only on plateau.
 - Use `configs/rankfix-pilot.yaml` for the 2500-step no-streaming go/no-go run; proceed only with finite diagnostics and normalized reverse RMS ≤3, and stop on hard RMS failures twice. If stable but high-timestep MSE is poor, retry once at half LR. Validation is for tuning only.
 - Old checkpoints are incompatible with corrected runs; never resume the legacy 50k run.
+- All five layers train on the same aligned 50k-prompt store with identical architecture and schedule. Hyperparameters like the learning rate may differ slightly per layer: a reverse-trajectory hard-fail retries that layer from scratch at half LR (up to 3 retries).
 - Do not commit tensors, checkpoints, or logs. Do not add the nested slides directory.
 - Keep new code CPU-testable. Real OLMo extraction is gated behind `configs/default.yaml`.
 

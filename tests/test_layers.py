@@ -45,6 +45,15 @@ def test_default_and_rankfix_probe_the_main_layers():
         assert resolved_layers(cfg) == [1, 8, 16, 24, 32]
 
 
+def test_multi_layer_protocol_pre_extracts_aligned_data_without_streaming():
+    cfg = ExperimentConfig.load("configs/default.yaml")
+    assert cfg.extract.n_train_initial == cfg.extract.max_train_samples == 50000
+    assert cfg.diffusion.stream_on_plateau is False
+    for path in ("configs/rankfix.yaml", "configs/rankfix-pilot.yaml"):
+        fixed = ExperimentConfig.load(path)
+        assert fixed.diffusion.stream_on_plateau is False, path
+
+
 def test_layer_cfgs_loop_all_main_layers_unless_restricted():
     cfg = ExperimentConfig.load("configs/default.yaml")
     all_cfgs = _layer_cfgs(cfg, None)
