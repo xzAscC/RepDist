@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from repdist.cli import _layer_cfgs, main
+from repdist.cli import REPORT_DEFAULT_RUNS, _layer_cfgs, main
 from repdist.config import (
     ExperimentConfig,
     apply_layer_paths,
@@ -75,3 +75,8 @@ def test_compare_layer_runs_reads_flat_logs_and_writes_pdfs(tmp_path: Path):
     assert comparison["beats_random_swd"]["1"] is True
     assert (out / "summary.json").exists()
     assert (out / "swd_vs_layer.pdf").exists()
+
+
+def test_report_default_runs_is_50k_only():
+    assert REPORT_DEFAULT_RUNS == ["50k=logs/layers-50k"]
+    assert not any(item.startswith(("1024=", "8196=")) for item in REPORT_DEFAULT_RUNS)
