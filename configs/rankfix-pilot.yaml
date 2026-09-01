@@ -3,10 +3,10 @@ device: cuda
 
 paths:
   data: data/hidden_states
-  checkpoints: runs/rankfix-pilot/checkpoints
-  logs: runs/rankfix-pilot/logs
-  outputs: runs/rankfix-pilot/outputs
-  normalizer: runs/rankfix-pilot/normalizer.pt
+  checkpoints: checkpoints/rankfix-pilot
+  logs: logs/rankfix-pilot
+  figs: figs/rankfix-pilot
+  normalizer: checkpoints/rankfix-pilot/normalizer.pt
 
 extract:
   model_name: allenai/Olmo-3-7B-Think
