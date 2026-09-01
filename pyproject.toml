@@ -1,10 +1,11 @@
 [project]
 name = "repdist"
 version = "0.1.0"
-description = "DDPM modeling of Olmo-3 hidden-state representations"
+description = "DDPM modeling of Olmo-3 hidden-state distributions."
 readme = "README.md"
+license = "MIT"
 authors = [
-    { name = "xzascc", email = "xzascc3944@gmail.com" }
+    { name = "Xudong Zhu", email = "xzascc3944@gmail.com" }
 ]
 requires-python = ">=3.13"
 dependencies = [
@@ -17,12 +18,12 @@ dependencies = [
     "pyyaml>=6.0",
     "tqdm>=4.66",
     "safetensors>=0.4",
-    "jupyter>=1.1.1",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
-    "pytest>=8.0",
+    "pytest>=8",
+    "jupyter>=1.1.1",
 ]
 
 [project.scripts]
@@ -34,4 +35,3 @@ build-backend = "uv_build"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
