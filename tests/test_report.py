@@ -6,7 +6,12 @@ from pathlib import Path
 import torch
 
 from repdist.config import ExperimentConfig, apply_layer_paths
-from repdist.report import build_geom_metrics, family_metrics, write_loss_summary
+from repdist.report import (
+    build_geom_metrics,
+    family_metrics,
+    gaussian_baselines,
+    write_loss_summary,
+)
 from repdist.select import select_best_swd
 from repdist.train import train
 
@@ -47,6 +52,37 @@ def _write_fake_run(root: Path, family: str, dim: int = 8, n: int = 48) -> None:
             "standard_normal": n01,
         },
         layer_dir / "eval_tensors.pt",
+    )
+
+
+def test_gaussian_baselines_handles_degenerate_covariance(tmp_path: Path):
+    """Rank-deficient, extremely anisotropic train must still yield finite baselines.
+
+    Mirrors the overnight failure on layer 1: hidden-state covariances are so
+    ill-conditioned that a float32 cholesky factorization is not positive
+    definite. The eigh-based path must work for any PSD sample covariance.
+    """
+    g = torch.Generator().manual_seed(0)
+    d, n = 64, 48  # n < d -> sample covariance is exactly rank-deficient
+    q, _ = torch.linalg.qr(torch.randn(d, d, generator=g))
+    scales = torch.logspace(4, -2, d)
+    train = torch.randn(n, d, generator=g) @ (q * scales.sqrt()).T + 0.5
+
+    baselines = gaussian_baselines(train, n=32, seed=0)
+
+    assert set(baselines) == {"fitted", "isotropic", "diagonal"}
+    for name, samples in baselines.items():
+        assert torch.isfinite(samples).all(), name
+        assert samples.shape == (32, d)
+    first = gaussian_baselines(train, n=32, seed=0)
+    for name in baselines:
+        assert torch.equal(baselines[name], first[name]), "must be seed-deterministic"
+    target = torch.cov(train.T)
+    cov_fitted = torch.cov(baselines["fitted"].T)
+    evals = torch.linalg.eigvalsh(target.double()).clamp_min(0)
+    scale = torch.sqrt(evals.mean())
+    assert (cov_fitted - target).norm() / target.norm() < 0.5 + scale, (
+        "fitted samples should track the target spectrum up to sampling noise"
     )
 
 

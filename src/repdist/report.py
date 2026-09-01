@@ -48,17 +48,23 @@ def family_metrics(
 def gaussian_baselines(
     train: torch.Tensor, n: int, seed: int
 ) -> dict[str, torch.Tensor]:
-    """Fitted, isotropic, and diagonal Gaussians of the training statistics."""
+    """Fitted, isotropic, and diagonal Gaussians of the training statistics.
+
+    The fitted factor comes from a float64 eigendecomposition with negative
+    eigenvalues clamped to zero: hidden-state covariances are so ill-conditioned
+    that a float32 cholesky of the sample covariance is numerically not
+    positive-definite (seen on layer 1 of the layers-50k run).
+    """
     mu = train.mean(dim=0)
     dim = train.shape[1]
     cov = torch.cov(train.T)
-    ridge = 1e-6 * cov.diagonal().mean().clamp_min(1e-12)
-    chol = torch.linalg.cholesky(cov + ridge * torch.eye(dim, device=cov.device))
+    evals, evecs = torch.linalg.eigh(cov.double())
+    factor = (evecs * evals.clamp_min(0.0).sqrt()).to(train.dtype)
     generator = torch.Generator(device=train.device).manual_seed(seed)
     eps = torch.randn(n, dim, generator=generator, device=train.device)
     sigma = (train - mu).square().mean().sqrt()
     return {
-        "fitted": mu + eps @ chol.T,
+        "fitted": mu + eps @ factor.T,
         "isotropic": mu + sigma * eps,
         "diagonal": mu + eps * train.std(dim=0, unbiased=False),
     }
