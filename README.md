@@ -53,6 +53,7 @@ User/assistant traces are truncated to the user prompt; assistant `<think>` trac
 - Predictor: two-layer SiLU MLP (8196 hidden) with a sinusoidal time embedding and a full-rank skip whose residual branch is zero-initialized.
 - Reverse: standard DDPM mean and posterior variance, no extra noise at \(t=1\); samples map back via \(\tilde{\mathbf{h}} = s_{\mathrm{train}}\tilde{\mathbf{x}}_0 + \boldsymbol{\mu}_{\mathrm{train}}\).
 - Eval: covariance spectra, effective rank \(d_{\mathrm{eff}}\), PCA (rank 32, fitted on train), and sliced Wasserstein-2 against both the diffusion samples and an independent \(\mathcal{N}(0,I)\) baseline in normalized space. Smaller SWD and closer spectra mean better recovery.
+- Training dynamics: with diffusion models the loss is generally considered to remain constant over a long period, yet the model's performance actually continues to improve — judge runs by the sample-space metrics above (SWD, spectra), not by the loss curve. Layer 1, whose real distribution has the highest effective rank, is the hardest to model.
 
 ## Commands
 
