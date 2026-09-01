@@ -5,7 +5,7 @@ from pathlib import Path
 
 import torch
 
-from repdist.checkpoint import best_path, latest_path, load_checkpoint
+from repdist.checkpoint import best_path, latest_path, load_checkpoint, step_path
 from repdist.config import ExperimentConfig
 from repdist.data import HiddenStateStore, LatentPCA, Normalizer
 from repdist.ddpm import CosineSchedule, NoisePredictor, sample
@@ -49,9 +49,14 @@ def evaluate(cfg: ExperimentConfig, ckpt_name: str = "best") -> dict:
     store = HiddenStateStore(cfg.paths.data)
     train = store.load_split("train")
     test = store.load_split("test")
-    ckpt_file = best_path(cfg.paths.checkpoints)
-    if ckpt_name == "latest" or not ckpt_file.exists():
-        ckpt_file = latest_path(cfg.paths.checkpoints)
+    if ckpt_name.isdigit():
+        ckpt_file = step_path(cfg.paths.checkpoints, int(ckpt_name))
+        if not ckpt_file.exists():
+            raise FileNotFoundError(ckpt_file)
+    else:
+        ckpt_file = best_path(cfg.paths.checkpoints)
+        if ckpt_name == "latest" or not ckpt_file.exists():
+            ckpt_file = latest_path(cfg.paths.checkpoints)
     ckpt = load_checkpoint(ckpt_file, map_location=device)
     normalizer = Normalizer.from_state_dict(ckpt["normalizer"])
 

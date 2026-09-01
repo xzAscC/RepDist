@@ -51,7 +51,11 @@ def main(argv: list[str] | None = None) -> int:
     p_train.add_argument("--no-resume", action="store_true")
 
     p_eval = sub.add_parser("eval", help="evaluate held-out matching")
-    p_eval.add_argument("--ckpt", default="best", choices=["best", "latest"])
+    p_eval.add_argument(
+        "--ckpt",
+        default="best",
+        help="checkpoint to evaluate: best, latest, or a step number",
+    )
 
     sub.add_parser(
         "viz",

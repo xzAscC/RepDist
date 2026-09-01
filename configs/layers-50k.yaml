@@ -3,17 +3,17 @@ device: cuda
 
 paths:
   data: data/hidden_states
-  checkpoints: checkpoints/layer1-50k
-  logs: logs/layer1-50k
-  figs: figs/layer1-50k
-  normalizer: checkpoints/layer1-50k/normalizer.pt
+  checkpoints: checkpoints/layers-50k
+  logs: logs/layers-50k
+  figs: figs/layers-50k
+  normalizer: checkpoints/layers-50k/normalizer.pt
 
 extract:
   model_name: allenai/Olmo-3-7B-Think
   dataset_name: allenai/Dolci-Think-SFT-7B
   dataset_split: train
-  layer: 1
-  layers: [1]
+  layer: 16
+  layers: [1, 8, 16, 24, 32]
   max_prompt_tokens: 1024
   batch_size: 2
   shard_size: 512

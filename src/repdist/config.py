@@ -57,6 +57,7 @@ class DiffusionConfig:
     grad_clip: float = 1.0
     eval_every: int = 500
     ckpt_every: int = 500
+    step_ckpt_every: int = 5000
     log_every: int = 50
     patience: int = 8
     min_delta: float = 1e-4

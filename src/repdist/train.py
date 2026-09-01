@@ -383,20 +383,24 @@ def train(cfg: ExperimentConfig, resume: bool = True) -> dict:
                 schedule_spec=schedule_spec,
                 extra=extra,
             )
-            save_checkpoint(
-                step_path(ckpt_dir, step),
-                step=step,
-                model=model,
-                optimizer=optimizer,
-                scheduler_state=None,
-                normalizer=normalizer,
-                best_val=best_val,
-                patience_left=patience_left,
-                rng_state=rng,
-                model_spec=model_spec,
-                schedule_spec=schedule_spec,
-                extra=extra,
-            )
+            if (
+                step % cfg.diffusion.step_ckpt_every == 0
+                or step == cfg.diffusion.max_steps
+            ):
+                save_checkpoint(
+                    step_path(ckpt_dir, step),
+                    step=step,
+                    model=model,
+                    optimizer=optimizer,
+                    scheduler_state=None,
+                    normalizer=normalizer,
+                    best_val=best_val,
+                    patience_left=patience_left,
+                    rng_state=rng,
+                    model_spec=model_spec,
+                    schedule_spec=schedule_spec,
+                    extra=extra,
+                )
 
     pbar.close()
     return {"step": step, "best_val": best_val, "last_val": last_val}
