@@ -79,6 +79,7 @@ def evaluate(cfg: ExperimentConfig, ckpt_name: str = "best") -> dict:
         schedule=schedule,
         device=device,
         batch_size=cfg.eval.sample_batch_size,
+        center=cfg.diffusion.reverse_center,
     )
     normalized_diffusion = pca.decode(gen_x.cpu()) if pca is not None else gen_x.cpu()
     if normalized_diffusion.shape[1] != ambient_dim:

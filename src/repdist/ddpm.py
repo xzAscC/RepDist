@@ -216,6 +216,7 @@ def p_sample(
     t_index: int,
     schedule: CosineSchedule,
     generator: torch.Generator | None = None,
+    center: bool = False,
 ) -> Tensor:
     batch = xt.shape[0]
     t = torch.full((batch,), t_index, device=xt.device, dtype=torch.long)
@@ -226,10 +227,18 @@ def p_sample(
         xt - beta_t / sqrt_one_minus * eps
     )
     if t_index == 0:
-        return mean
-    noise = torch.randn(xt.shape, device=xt.device, dtype=xt.dtype, generator=generator)
-    sigma = extract(schedule.sqrt_posterior_variance, t, xt.shape)
-    return mean + sigma * noise
+        result = mean
+    else:
+        noise = torch.randn(
+            xt.shape, device=xt.device, dtype=xt.dtype, generator=generator
+        )
+        sigma = extract(schedule.sqrt_posterior_variance, t, xt.shape)
+        result = mean + sigma * noise
+    if center and batch > 1:
+        # Normalized-space training data has zero mean, so any batch-mean
+        # offset is reverse-chain drift, not learned structure.
+        result = result - result.mean(dim=0, keepdim=True)
+    return result
 
 
 @torch.no_grad()
@@ -241,6 +250,7 @@ def sample(
     device: torch.device | str,
     batch_size: int = 256,
     generator: torch.Generator | None = None,
+    center: bool = False,
 ) -> Tensor:
     model.eval()
     chunks: list[Tensor] = []
@@ -249,7 +259,9 @@ def sample(
         b = min(batch_size, remaining)
         xt = torch.randn(b, dim, device=device, generator=generator)
         for t_index in range(schedule.timesteps - 1, -1, -1):
-            xt = p_sample(model, xt, t_index, schedule, generator=generator)
+            xt = p_sample(
+                model, xt, t_index, schedule, generator=generator, center=center
+            )
         chunks.append(xt.cpu())
         remaining -= b
     return torch.cat(chunks, dim=0)
@@ -265,6 +277,7 @@ def sample_with_diagnostics(
     batch_size: int = 256,
     generator: torch.Generator | None = None,
     selected_steps: list[int] | tuple[int, ...] = (),
+    center: bool = False,
 ) -> SampleDiagnostics:
     """Sample without clipping and report reverse-trajectory RMS health."""
     if any(t < 0 or t >= schedule.timesteps for t in selected_steps):
@@ -283,7 +296,9 @@ def sample_with_diagnostics(
         b = min(batch_size, remaining)
         xt = torch.randn(b, dim, device=device, generator=generator)
         for t_index in range(schedule.timesteps - 1, -1, -1):
-            xt = p_sample(model, xt, t_index, schedule, generator=generator)
+            xt = p_sample(
+                model, xt, t_index, schedule, generator=generator, center=center
+            )
             is_finite = bool(torch.isfinite(xt).all().item())
             finite = finite and is_finite
             rms = float(torch.sqrt(torch.mean(xt.square())).item())

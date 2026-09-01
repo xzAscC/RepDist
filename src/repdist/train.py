@@ -288,6 +288,7 @@ def train(cfg: ExperimentConfig, resume: bool = True) -> dict:
                     batch_size=cfg.diffusion.batch_size,
                     generator=torch.Generator(device=device).manual_seed(cfg.seed),
                     selected_steps=sorted(set(diagnostic_timesteps + [0])),
+                    center=cfg.diffusion.reverse_center,
                 )
                 diagnostic = {
                     "step": step,

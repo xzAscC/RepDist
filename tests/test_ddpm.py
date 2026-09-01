@@ -35,6 +35,26 @@ def test_extract_broadcasts():
     )
 
 
+def test_sample_centered_removes_batch_mean():
+    sched = CosineSchedule(50)
+    model = NoisePredictor(4, hidden_dim=8, time_embed_dim=8)
+    g = torch.Generator().manual_seed(0)
+    out = sample(
+        model, 64, 4, sched, device="cpu", batch_size=64, generator=g, center=True
+    )
+    assert out.mean(dim=0).abs().max().item() < 1e-6
+
+
+def test_sample_centered_keeps_single_sample():
+    sched = CosineSchedule(10)
+    model = NoisePredictor(4, hidden_dim=8, time_embed_dim=8)
+    g = torch.Generator().manual_seed(0)
+    out = sample(
+        model, 1, 4, sched, device="cpu", batch_size=1, generator=g, center=True
+    )
+    assert out.abs().sum() > 0
+
+
 def test_noise_predictor_residual_contract():
     model = NoisePredictor(8, hidden_dim=25, time_embed_dim=6, zero_init_output=False)
     torch.nn.init.ones_(model.fc2.weight)

@@ -48,6 +48,7 @@ class DiffusionConfig:
     min_snr_gamma: float = 0.0
     latent_rank: int = 0
     zero_init_output: bool = True
+    reverse_center: bool = True
     lr: float = 2e-4
     weight_decay: float = 0.0
     batch_size: int = 256
