@@ -72,6 +72,12 @@ uv run repdist --config configs/default.yaml --layer 16 train
 # Memo figures from saved eval tensors
 uv run repdist --config configs/default.yaml --layer 16 viz
 
+# Rank every-5k-step checkpoints by validation SWD, then re-eval the winner
+uv run repdist --config configs/layers-50k.yaml --layer 16 select-swd --apply
+
+# Regenerate notebook inputs (geom_metrics.json, loss_summary.json)
+uv run repdist --config configs/layers-50k.yaml report
+
 # Cross-layer comparison over logs/
 uv run repdist --config configs/default.yaml compare-layers
 ```
