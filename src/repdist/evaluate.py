@@ -7,7 +7,8 @@ import torch
 
 from repdist.checkpoint import best_path, latest_path, load_checkpoint
 from repdist.config import ExperimentConfig
-from repdist.diffusion import sample
+from repdist.data import HiddenStateStore, LatentPCA, Normalizer
+from repdist.ddpm import CosineSchedule, NoisePredictor, sample
 from repdist.metrics import (
     covariance_spectrum,
     effective_rank,
@@ -15,12 +16,6 @@ from repdist.metrics import (
     sample_standard_normal,
     sliced_wasserstein_2,
 )
-from repdist.model import NoisePredictor
-from repdist.normalize import Normalizer
-from repdist.schedule import CosineSchedule
-from repdist.store import HiddenStateStore
-from repdist.latent import LatentPCA
-from repdist.layers import load_layer_metrics
 from repdist.visualize import (
     validate_eval_payload,
     write_figures,
@@ -147,12 +142,11 @@ def evaluate(cfg: ExperimentConfig, ckpt_name: str = "best") -> dict:
         ),
     }
 
-    out_dir = Path(cfg.paths.outputs)
-    fig_dir = out_dir / "figures"
-    met_dir = out_dir / "metrics"
+    log_dir = Path(cfg.paths.logs)
+    fig_dir = Path(cfg.paths.figs)
+    log_dir.mkdir(parents=True, exist_ok=True)
     fig_dir.mkdir(parents=True, exist_ok=True)
-    met_dir.mkdir(parents=True, exist_ok=True)
-    (met_dir / "eval.json").write_text(json.dumps(metrics, indent=2) + "\n")
+    (log_dir / "eval.json").write_text(json.dumps(metrics, indent=2) + "\n")
     torch.save(
         {
             "spectrum_real": spec_real,
@@ -163,7 +157,7 @@ def evaluate(cfg: ExperimentConfig, ckpt_name: str = "best") -> dict:
             "normalized_diffusion": normalized_diffusion,
             "standard_normal": random,
         },
-        met_dir / "eval_tensors.pt",
+        log_dir / "eval_tensors.pt",
     )
     write_figures(
         train=normalized_train,
@@ -181,11 +175,11 @@ def evaluate(cfg: ExperimentConfig, ckpt_name: str = "best") -> dict:
 
 
 def visualize_from_saved(cfg: ExperimentConfig) -> dict:
-    met_dir = Path(cfg.paths.outputs) / "metrics"
+    log_dir = Path(cfg.paths.logs)
     payload = torch.load(
-        met_dir / "eval_tensors.pt", map_location="cpu", weights_only=False
+        log_dir / "eval_tensors.pt", map_location="cpu", weights_only=False
     )
-    metrics = json.loads((met_dir / "eval.json").read_text())
+    metrics = json.loads((log_dir / "eval.json").read_text())
     validate_eval_payload(payload, metrics)
     write_figures(
         train=payload["normalized_train"],
@@ -196,18 +190,34 @@ def visualize_from_saved(cfg: ExperimentConfig) -> dict:
         spec_diff=payload["spectrum_diffusion"],
         spec_random=payload["spectrum_random"],
         metrics=metrics,
-        fig_dir=Path(cfg.paths.outputs) / "figures",
+        fig_dir=Path(cfg.paths.figs),
         log_path=Path(cfg.paths.logs) / "train.jsonl",
     )
     return metrics
 
 
-def compare_layer_runs(run_root: str | Path, out_dir: str | Path) -> dict:
-    layer_metrics = load_layer_metrics(run_root)
+def load_layer_metrics(root: str | Path) -> dict[int, dict]:
+    root = Path(root)
+    metrics: dict[int, dict] = {}
+    paths = list(root.glob("layer_*/eval.json")) + list(
+        root.glob("*/layer_*/eval.json")
+    )
+    for path in sorted(set(paths)):
+        layer_name = next(part for part in path.parts if part.startswith("layer_"))
+        layer = int(layer_name.split("_")[1])
+        if layer in metrics:
+            continue
+        metrics[layer] = json.loads(path.read_text())
+        metrics[layer]["layer"] = layer
+    return metrics
+
+
+def compare_layer_runs(log_root: str | Path, out_dir: str | Path) -> dict:
+    layer_metrics = load_layer_metrics(log_root)
     if not layer_metrics:
-        raise FileNotFoundError(f"no layer eval.json files under {run_root}")
+        raise FileNotFoundError(f"no layer eval.json files under {log_root}")
     comparison = {
-        "run_root": str(run_root),
+        "run_root": str(log_root),
         "layers": sorted(layer_metrics),
         "metrics": {str(k): v for k, v in sorted(layer_metrics.items())},
         "beats_random_swd": {
@@ -226,7 +236,7 @@ def compare_layer_runs(run_root: str | Path, out_dir: str | Path) -> dict:
     }
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
-    (out / "comparison.json").write_text(json.dumps(comparison, indent=2) + "\n")
+    (out / "summary.json").write_text(json.dumps(comparison, indent=2) + "\n")
     lines = [
         "# Layer comparison",
         "",

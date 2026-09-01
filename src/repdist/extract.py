@@ -6,9 +6,8 @@ import torch
 from torch import Tensor
 from tqdm import tqdm
 
-from repdist.config import ExperimentConfig
-from repdist.layers import layer_store_root, resolved_layers
-from repdist.store import HiddenStateStore
+from repdist.config import ExperimentConfig, layer_store_root, resolved_layers
+from repdist.data import HiddenStateStore
 
 
 def _dtype(name: str) -> torch.dtype:

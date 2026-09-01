@@ -3,12 +3,12 @@ from pathlib import Path
 
 import torch
 
-from repdist.config import ExperimentConfig
-from repdist.diffusion import SampleDiagnostics
-from repdist.evaluate import evaluate
-from repdist.normalize import Normalizer
-from repdist.train import train
 from repdist import train as train_module
+from repdist.config import ExperimentConfig
+from repdist.data import Normalizer
+from repdist.ddpm import SampleDiagnostics
+from repdist.evaluate import evaluate
+from repdist.train import train
 
 
 def _smoke_cfg(tmp_path: Path, max_steps: int) -> ExperimentConfig:
@@ -16,7 +16,7 @@ def _smoke_cfg(tmp_path: Path, max_steps: int) -> ExperimentConfig:
     cfg.paths.data = str(tmp_path / "data")
     cfg.paths.checkpoints = str(tmp_path / "checkpoints")
     cfg.paths.logs = str(tmp_path / "logs")
-    cfg.paths.outputs = str(tmp_path / "outputs")
+    cfg.paths.figs = str(tmp_path / "figs")
     cfg.paths.normalizer = str(tmp_path / "normalizer.pt")
     cfg.device = "cpu"
     cfg.diffusion.max_steps = max_steps
@@ -53,7 +53,7 @@ def test_eval_runs(tmp_path: Path):
     metrics = evaluate(cfg, ckpt_name="latest")
     assert metrics["n_test"] == 64
     assert metrics["swd_real_diffusion"] >= 0.0
-    assert (Path(cfg.paths.outputs) / "metrics" / "eval.json").exists()
+    assert (Path(cfg.paths.logs) / "eval.json").exists()
 
 
 def test_no_resume_fresh_run_does_not_load_optimizer(tmp_path: Path, monkeypatch):

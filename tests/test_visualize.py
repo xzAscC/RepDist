@@ -56,6 +56,7 @@ def test_write_figures(tmp_path: Path):
         log_path=log_path,
     )
     assert all(p.exists() for p in paths)
+    assert all(p.suffix == ".pdf" for p in paths)
     assert RANDOM_LABEL == "standard normal N(0,I)"
 
 

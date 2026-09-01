@@ -20,17 +20,15 @@ from repdist.checkpoint import (
     validate_checkpoint_compatibility,
 )
 from repdist.config import ExperimentConfig
-from repdist.diffusion import (
+from repdist.data import HiddenStateStore, LatentPCA, Normalizer
+from repdist.ddpm import (
+    CosineSchedule,
+    NoisePredictor,
     diffusion_loss,
     epsilon_diagnostics,
     sample_with_diagnostics,
 )
 from repdist.extract import ensure_train
-from repdist.latent import LatentPCA
-from repdist.model import NoisePredictor
-from repdist.normalize import Normalizer
-from repdist.schedule import CosineSchedule
-from repdist.store import HiddenStateStore
 
 
 def set_seed(seed: int) -> None:
