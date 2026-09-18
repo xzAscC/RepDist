@@ -51,7 +51,7 @@ def pca_basis(train: Tensor, rank: int = 2) -> tuple[Tensor, Tensor, Tensor]:
     mean = train.mean(dim=0)
     centered = train - mean
     q = min(rank, *centered.shape)
-    u, s, v = torch.pca_lowrank(centered, q=q, center=False)
+    _, s, v = torch.pca_lowrank(centered, q=q, center=False)
     return mean, v[:, :rank], s[:rank]
 
 

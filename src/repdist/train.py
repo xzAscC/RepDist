@@ -20,17 +20,15 @@ from repdist.checkpoint import (
     validate_checkpoint_compatibility,
 )
 from repdist.config import ExperimentConfig
-from repdist.diffusion import (
+from repdist.data import HiddenStateStore, LatentPCA, Normalizer
+from repdist.ddpm import (
+    CosineSchedule,
+    NoisePredictor,
     diffusion_loss,
     epsilon_diagnostics,
     sample_with_diagnostics,
 )
 from repdist.extract import ensure_train
-from repdist.latent import LatentPCA
-from repdist.model import NoisePredictor
-from repdist.normalize import Normalizer
-from repdist.schedule import CosineSchedule
-from repdist.store import HiddenStateStore
 
 
 def set_seed(seed: int) -> None:
@@ -290,6 +288,7 @@ def train(cfg: ExperimentConfig, resume: bool = True) -> dict:
                     batch_size=cfg.diffusion.batch_size,
                     generator=torch.Generator(device=device).manual_seed(cfg.seed),
                     selected_steps=sorted(set(diagnostic_timesteps + [0])),
+                    center=cfg.diffusion.reverse_center,
                 )
                 diagnostic = {
                     "step": step,
@@ -384,20 +383,24 @@ def train(cfg: ExperimentConfig, resume: bool = True) -> dict:
                 schedule_spec=schedule_spec,
                 extra=extra,
             )
-            save_checkpoint(
-                step_path(ckpt_dir, step),
-                step=step,
-                model=model,
-                optimizer=optimizer,
-                scheduler_state=None,
-                normalizer=normalizer,
-                best_val=best_val,
-                patience_left=patience_left,
-                rng_state=rng,
-                model_spec=model_spec,
-                schedule_spec=schedule_spec,
-                extra=extra,
-            )
+            if (
+                step % cfg.diffusion.step_ckpt_every == 0
+                or step == cfg.diffusion.max_steps
+            ):
+                save_checkpoint(
+                    step_path(ckpt_dir, step),
+                    step=step,
+                    model=model,
+                    optimizer=optimizer,
+                    scheduler_state=None,
+                    normalizer=normalizer,
+                    best_val=best_val,
+                    patience_left=patience_left,
+                    rng_state=rng,
+                    model_spec=model_spec,
+                    schedule_spec=schedule_spec,
+                    extra=extra,
+                )
 
     pbar.close()
     return {"step": step, "best_val": best_val, "last_val": last_val}

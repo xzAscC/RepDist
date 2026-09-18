@@ -395,13 +395,13 @@ def write_figures(
     _style()
     fig_dir.mkdir(parents=True, exist_ok=True)
     paths = [
-        fig_dir / "spectrum.png",
-        fig_dir / "spectrum_cumulative.png",
-        fig_dir / "effective_rank.png",
-        fig_dir / "pca.png",
-        fig_dir / "swd.png",
-        fig_dir / "projections.png",
-        fig_dir / "loss.png",
+        fig_dir / "spectrum.pdf",
+        fig_dir / "spectrum_cumulative.pdf",
+        fig_dir / "effective_rank.pdf",
+        fig_dir / "pca.pdf",
+        fig_dir / "swd.pdf",
+        fig_dir / "projections.pdf",
+        fig_dir / "loss.pdf",
     ]
     plot_spectrum(spec_real, spec_diff, spec_random, paths[0])
     plot_cumulative_spectrum(spec_real, spec_diff, spec_random, paths[1])
@@ -431,7 +431,7 @@ def write_layer_comparison(layer_metrics: dict[int, dict], fig_dir: Path) -> lis
         layer_metrics[k]["pca_covariance_relative_error_random"] for k in layers
     ]
 
-    swd_path = fig_dir / "swd_vs_layer.png"
+    swd_path = fig_dir / "swd_vs_layer.pdf"
     fig, ax = plt.subplots(figsize=(6.2, 4.2))
     ax.plot(layers, swd_diff, "o-", color=DIFF, label="diffusion")
     ax.plot(layers, swd_rand, "s--", color=RANDOM, label=RANDOM_LABEL)
@@ -442,7 +442,7 @@ def write_layer_comparison(layer_metrics: dict[int, dict], fig_dir: Path) -> lis
     fig.savefig(swd_path)
     plt.close(fig)
 
-    deff_path = fig_dir / "deff_vs_layer.png"
+    deff_path = fig_dir / "deff_vs_layer.pdf"
     fig, ax = plt.subplots(figsize=(6.2, 4.2))
     ax.plot(layers, deff_real, "o-", color=REAL, label="real")
     ax.plot(layers, deff_diff, "s-.", color=DIFF, label="diffusion")
@@ -455,7 +455,7 @@ def write_layer_comparison(layer_metrics: dict[int, dict], fig_dir: Path) -> lis
     fig.savefig(deff_path)
     plt.close(fig)
 
-    pca_path = fig_dir / "pca_cov_error_vs_layer.png"
+    pca_path = fig_dir / "pca_cov_error_vs_layer.pdf"
     fig, ax = plt.subplots(figsize=(6.2, 4.2))
     ax.plot(layers, pca_err_diff, "o-", color=DIFF, label="diffusion")
     ax.plot(layers, pca_err_rand, "s--", color=RANDOM, label=RANDOM_LABEL)
