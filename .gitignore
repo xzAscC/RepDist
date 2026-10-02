@@ -1,3 +1,13 @@
+# agent files
+
+.omo/
+
+# latex files
+
+69e5bc6d27002aeac07372b4/
+
+# python
+
 .venv/
 __pycache__/
 *.py[cod]
@@ -8,30 +18,20 @@ __pycache__/
 .coverage
 htmlcov/
 
+# runtime artifacts
 
-# Nested slides workspace, not part of the experiment repo
-69e5bc6d27002aeac07372b4/
-
-# Runtime artifacts
-data/**/*.pt
-data/**/*.json
-checkpoints/**/*.pt
-logs/**
-outputs/figures/**
-outputs/metrics/**
-runs/
-!data/hidden_states/.gitkeep
+data/*
+!data/.gitkeep
+checkpoints/*
 !checkpoints/.gitkeep
+logs/*
 !logs/.gitkeep
-!outputs/figures/.gitkeep
-!outputs/metrics/.gitkeep
-!logs/.gitkeep
+figs/*
+!figs/.gitkeep
+notebooks/*
+!notebooks/.gitkeep
 
-# notebooks
-notebooks/
+# do not commit experiment outputs
 
-#checkpoints
-outputs/
-
-# Agents
-.omo/
+*.pt
+*.png

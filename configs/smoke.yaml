@@ -2,11 +2,11 @@ seed: 0
 device: cpu
 
 paths:
-  data: runs/smoke/hidden_states
-  checkpoints: runs/smoke/checkpoints
-  logs: runs/smoke/logs
-  outputs: runs/smoke/outputs
-  normalizer: runs/smoke/normalizer.pt
+  data: data/smoke
+  checkpoints: checkpoints/smoke
+  logs: logs/smoke
+  figs: figs/smoke
+  normalizer: checkpoints/smoke/normalizer.pt
 
 extract:
   model_name: synthetic

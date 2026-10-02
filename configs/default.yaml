@@ -5,8 +5,8 @@ paths:
   data: data/hidden_states
   checkpoints: checkpoints
   logs: logs
-  outputs: outputs
-  normalizer: data/hidden_states/normalizer.pt
+  figs: figs
+  normalizer: checkpoints/normalizer.pt
 
 extract:
   model_name: allenai/Olmo-3-7B-Think

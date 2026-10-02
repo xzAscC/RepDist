@@ -1,9 +1,8 @@
 from pathlib import Path
 
+import pytest
 import torch
 from torch.optim import AdamW
-
-import pytest
 
 from repdist.checkpoint import (
     CHECKPOINT_FORMAT,
@@ -12,8 +11,8 @@ from repdist.checkpoint import (
     save_checkpoint,
     validate_checkpoint_compatibility,
 )
-from repdist.model import NoisePredictor
-from repdist.normalize import Normalizer
+from repdist.data import Normalizer
+from repdist.ddpm import NoisePredictor
 
 
 def test_checkpoint_roundtrip(tmp_path: Path):

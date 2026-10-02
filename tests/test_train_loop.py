@@ -3,12 +3,12 @@ from pathlib import Path
 
 import torch
 
-from repdist.config import ExperimentConfig
-from repdist.diffusion import SampleDiagnostics
-from repdist.evaluate import evaluate
-from repdist.normalize import Normalizer
-from repdist.train import train
 from repdist import train as train_module
+from repdist.config import ExperimentConfig
+from repdist.data import Normalizer
+from repdist.ddpm import SampleDiagnostics
+from repdist.evaluate import evaluate
+from repdist.train import train
 
 
 def _smoke_cfg(tmp_path: Path, max_steps: int) -> ExperimentConfig:
@@ -16,7 +16,7 @@ def _smoke_cfg(tmp_path: Path, max_steps: int) -> ExperimentConfig:
     cfg.paths.data = str(tmp_path / "data")
     cfg.paths.checkpoints = str(tmp_path / "checkpoints")
     cfg.paths.logs = str(tmp_path / "logs")
-    cfg.paths.outputs = str(tmp_path / "outputs")
+    cfg.paths.figs = str(tmp_path / "figs")
     cfg.paths.normalizer = str(tmp_path / "normalizer.pt")
     cfg.device = "cpu"
     cfg.diffusion.max_steps = max_steps
@@ -47,13 +47,32 @@ def test_train_and_resume(tmp_path: Path):
     assert second["step"] == 12
 
 
+def test_step_checkpoints_follow_step_ckpt_every(tmp_path: Path):
+    cfg = _smoke_cfg(tmp_path, max_steps=40)
+    cfg.diffusion.ckpt_every = 10
+    cfg.diffusion.step_ckpt_every = 20
+    train(cfg, resume=False)
+    names = {p.name for p in Path(cfg.paths.checkpoints).glob("step_*.pt")}
+    assert names == {"step_0000020.pt", "step_0000040.pt"}
+
+
 def test_eval_runs(tmp_path: Path):
     cfg = _smoke_cfg(tmp_path, max_steps=6)
     train(cfg, resume=False)
     metrics = evaluate(cfg, ckpt_name="latest")
     assert metrics["n_test"] == 64
     assert metrics["swd_real_diffusion"] >= 0.0
-    assert (Path(cfg.paths.outputs) / "metrics" / "eval.json").exists()
+    assert (Path(cfg.paths.logs) / "eval.json").exists()
+
+
+def test_eval_accepts_step_checkpoint(tmp_path: Path):
+    cfg = _smoke_cfg(tmp_path, max_steps=6)
+    cfg.diffusion.ckpt_every = 3
+    cfg.diffusion.step_ckpt_every = 3
+    train(cfg, resume=False)
+    metrics = evaluate(cfg, ckpt_name="6")
+    assert metrics["step"] == 6
+    assert "step_0000006.pt" in metrics["ckpt"]
 
 
 def test_no_resume_fresh_run_does_not_load_optimizer(tmp_path: Path, monkeypatch):

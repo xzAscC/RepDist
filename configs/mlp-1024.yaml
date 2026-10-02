@@ -3,10 +3,10 @@ device: cuda
 
 paths:
   data: data/hidden_states
-  checkpoints: runs/mlp1024/checkpoints
-  logs: runs/mlp1024/logs
-  outputs: runs/mlp1024/outputs
-  normalizer: data/hidden_states/normalizer.pt
+  checkpoints: checkpoints/mlp-1024
+  logs: logs/mlp-1024
+  figs: figs/mlp-1024
+  normalizer: checkpoints/mlp-1024/normalizer.pt
 
 extract:
   model_name: allenai/Olmo-3-7B-Think

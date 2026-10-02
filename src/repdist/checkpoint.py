@@ -8,8 +8,7 @@ import torch
 from torch import nn
 from torch.optim import Optimizer
 
-from repdist.normalize import Normalizer
-
+from repdist.data import Normalizer
 
 CHECKPOINT_FORMAT = "repdist-checkpoint-v2"
 

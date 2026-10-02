@@ -12,8 +12,8 @@ class PathsConfig:
     data: str = "data/hidden_states"
     checkpoints: str = "checkpoints"
     logs: str = "logs"
-    outputs: str = "outputs"
-    normalizer: str = "data/hidden_states/normalizer.pt"
+    figs: str = "figs"
+    normalizer: str = "checkpoints/normalizer.pt"
 
 
 @dataclass
@@ -48,6 +48,7 @@ class DiffusionConfig:
     min_snr_gamma: float = 0.0
     latent_rank: int = 0
     zero_init_output: bool = True
+    reverse_center: bool = True
     lr: float = 2e-4
     weight_decay: float = 0.0
     batch_size: int = 256
@@ -56,6 +57,7 @@ class DiffusionConfig:
     grad_clip: float = 1.0
     eval_every: int = 500
     ckpt_every: int = 500
+    step_ckpt_every: int = 5000
     log_every: int = 50
     patience: int = 8
     min_delta: float = 1e-4
@@ -134,3 +136,62 @@ def _from_dict(cls: Any, raw: dict[str, Any]) -> Any:
         else:
             kwargs[f.name] = value
     return cls(**kwargs)
+
+
+def probe_layers(num_hidden_layers: int, current_layer: int = 16) -> list[int]:
+    """First, 25%, current, 75%, and last transformer blocks (1-indexed after-block)."""
+    if num_hidden_layers < 1:
+        raise ValueError("num_hidden_layers must be >= 1")
+    last = num_hidden_layers
+    first = 1
+    p25 = max(1, round(0.25 * num_hidden_layers))
+    p75 = max(1, round(0.75 * num_hidden_layers))
+    current = current_layer if 1 <= current_layer <= last else max(1, last // 2)
+    ordered = [first, p25, current, p75, last]
+    unique: list[int] = []
+    for layer in ordered:
+        if layer not in unique:
+            unique.append(layer)
+    return unique
+
+
+def resolved_layers(cfg: ExperimentConfig) -> list[int]:
+    if cfg.extract.layers:
+        layers = [int(layer) for layer in cfg.extract.layers]
+        unique: list[int] = []
+        for layer in layers:
+            if layer not in unique:
+                unique.append(layer)
+        if not unique:
+            raise ValueError("extract.layers must not be empty when provided")
+        return unique
+    return [int(cfg.extract.layer)]
+
+
+def layer_store_root(data_root: str | Path, layer: int, n_layers: int) -> Path:
+    root = Path(data_root)
+    if n_layers <= 1:
+        return root
+    return root / f"layer_{layer:02d}"
+
+
+def _nest_layer(path: str | Path, layer_name: str) -> str:
+    parsed = Path(path)
+    if parsed.name == layer_name:
+        return str(parsed)
+    return str(parsed / layer_name)
+
+
+def apply_layer_paths(cfg: ExperimentConfig, layer: int) -> ExperimentConfig:
+    """Point train/eval paths at one extracted layer under the config's own roots."""
+    cfg.extract.layer = int(layer)
+    cfg.extract.layers = []
+    layer_name = f"layer_{layer:02d}"
+    cfg.paths.data = _nest_layer(cfg.paths.data, layer_name)
+    cfg.paths.checkpoints = _nest_layer(cfg.paths.checkpoints, layer_name)
+    cfg.paths.logs = _nest_layer(cfg.paths.logs, layer_name)
+    cfg.paths.figs = _nest_layer(cfg.paths.figs, layer_name)
+    normalizer = Path(cfg.paths.normalizer)
+    if normalizer.parent.name != layer_name:
+        cfg.paths.normalizer = str(normalizer.parent / layer_name / normalizer.name)
+    return cfg
