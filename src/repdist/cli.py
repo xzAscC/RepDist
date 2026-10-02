@@ -13,6 +13,8 @@ from repdist.report import build_geom_metrics, write_loss_summary
 from repdist.select import select_best_swd
 from repdist.train import train_with_lr_retry
 
+REPORT_DEFAULT_RUNS = ["50k=logs/layers-50k"]
+
 
 def _load_cfg(path: str) -> ExperimentConfig:
     return ExperimentConfig.load(path)
@@ -83,7 +85,7 @@ def main(argv: list[str] | None = None) -> int:
     p_report.add_argument(
         "--runs",
         nargs="+",
-        default=["1024=logs/legacy/mlp1024", "8196=logs/legacy", "50k=logs/layers-50k"],
+        default=REPORT_DEFAULT_RUNS,
         help="family=logroot pairs feeding geom_metrics.json",
     )
     p_report.add_argument(

@@ -121,6 +121,20 @@ def test_build_geom_metrics_matches_notebook_schema(tmp_path: Path):
     assert set(geom["d_eff_random"]) == {"16"}
 
 
+def test_build_geom_metrics_single_family_is_50k_only(tmp_path: Path):
+    runs = {"50k": tmp_path / "50k"}
+    _write_fake_run(runs["50k"], "50k")
+
+    geom = build_geom_metrics(
+        runs, layers=[16], main_run="50k", seed=0, n_projections=8
+    )
+
+    layer = geom["layers"]["16"]
+    assert set(layer["diffusion"]) == {"50k"}
+    assert set(layer["baselines"]) == {"n01", "fitted", "isotropic", "diagonal"}
+    assert set(layer["diffusion"]["50k"]) == METRIC_KEYS
+
+
 def test_build_geom_metrics_freezes_missing_families(tmp_path: Path):
     runs = {name: tmp_path / name for name in ("1024", "8196", "50k")}
     for name, root in runs.items():
